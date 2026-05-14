@@ -18,8 +18,8 @@ class CartesiaService:
         self.voice_id = "a0e99841-438c-4a64-b679-ae501e7d6091"  # Barbarian — deep, clear
         self.model_id = "sonic-english"
         self.output_format = {
-            "container": "raw",
-            "encoding": "pcm_f32le",
+            "container": "mp3",
+            "encoding": "mp3",
             "sample_rate": 44100,
         }
         self.headers = {

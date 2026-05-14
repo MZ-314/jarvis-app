@@ -99,8 +99,8 @@ def synthesize_speech():
         audio_bytes = asyncio.run(cartesia_service.synthesize(text))
         return current_app.response_class(
             audio_bytes,
-            mimetype="audio/pcm",
-            headers={"Content-Disposition": "inline; filename=speech.pcm"},
+            mimetype="audio/mpeg",
+            headers={"Content-Disposition": "inline; filename=speech.mp3"},
         )
     except Exception as e:
         logger.exception("Speech synthesis failed")
@@ -156,10 +156,10 @@ def voice_turn():
 
         return current_app.response_class(
             audio_bytes,
-            mimetype="audio/pcm",
+            mimetype="audio/mpeg",
             headers={
                 "X-Transcript": response_text[:500],
-                "Content-Disposition": "inline; filename=response.pcm",
+                "Content-Disposition": "inline; filename=response.mp3",
             },
         )
     except Exception as e:

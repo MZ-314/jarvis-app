@@ -1,5 +1,6 @@
 import { useRef, useCallback } from "react";
 import { Audio } from "expo-av";
+import * as FileSystem from "expo-file-system/legacy";
 import { useVoiceStore } from "../store/voiceStore";
 import { useChatStore } from "../store/chatStore";
 import { useAuthStore } from "../store/authStore";
@@ -99,6 +100,45 @@ export function useVoice() {
         content: aiData.response,
         timestamp: Date.now(),
       });
+
+      // Play TTS audio
+      setStatus("speaking");
+      try {
+        const ttsRes = await fetch(`${BASE_URL}/voice/speak`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ text: aiData.response }),
+        });
+
+        if (ttsRes.ok) {
+          const blob = await ttsRes.blob();
+          const fileUri = `${FileSystem.cacheDirectory}jarvis_response.mp3`;
+          const reader = new FileReader();
+          await new Promise<void>((resolve) => {
+            reader.onloadend = () => {
+              const base64 = (reader.result as string).split(",")[1];
+              FileSystem.writeAsStringAsync(fileUri, base64, {
+                encoding: FileSystem.EncodingType.Base64,
+              }).then(resolve);
+            };
+            reader.readAsDataURL(blob);
+          });
+
+          await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+          const { sound } = await Audio.Sound.createAsync({ uri: fileUri });
+          await sound.playAsync();
+          sound.setOnPlaybackStatusUpdate((s) => {
+            if (s.isLoaded && s.didJustFinish) {
+              sound.unloadAsync();
+            }
+          });
+        }
+      } catch (ttsErr) {
+        console.log("TTS playback error:", ttsErr);
+      }
 
       if (sessionActive.current) {
         setStatus("listening");

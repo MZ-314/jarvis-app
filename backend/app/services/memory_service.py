@@ -92,7 +92,7 @@ class MemoryService:
             )
             return [r["payload"]["content"] for r in results if r.get("payload")]
         except Exception:
-            logger.warning("Memory recall failed, returning empty")
+            logger.exception("Memory recall failed, returning empty")
             return []
 
     async def forget(self, user_id: str, memory_id: str) -> bool:
