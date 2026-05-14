@@ -2,6 +2,7 @@
 
 import logging
 import uuid
+import asyncio
 from flask import request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 @voice_bp.route("/token", methods=["POST"])
 @jwt_required()
-async def get_voice_token():
+def get_voice_token():
     user_id = get_jwt_identity()
     data = request.get_json(silent=True) or {}
 
@@ -41,13 +42,13 @@ async def get_voice_token():
 
 @voice_bp.route("/room", methods=["POST"])
 @jwt_required()
-async def create_room():
+def create_room():
     user_id = get_jwt_identity()
     data = request.get_json(silent=True) or {}
     room_name = data.get("room_name") or f"room_{user_id}_{uuid.uuid4().hex[:8]}"
 
     try:
-        room = await livekit_service.create_room(room_name=room_name)
+        room = asyncio.run(livekit_service.create_room(room_name=room_name))
         return jsonify(room), 201
     except Exception as e:
         logger.exception("Failed to create LiveKit room")
@@ -56,9 +57,9 @@ async def create_room():
 
 @voice_bp.route("/room/<room_name>", methods=["DELETE"])
 @jwt_required()
-async def delete_room(room_name: str):
+def delete_room(room_name: str):
     try:
-        await livekit_service.delete_room(room_name=room_name)
+        asyncio.run(livekit_service.delete_room(room_name=room_name))
         return jsonify({"message": "Room deleted"}), 200
     except Exception as e:
         logger.exception("Failed to delete LiveKit room")
@@ -67,7 +68,7 @@ async def delete_room(room_name: str):
 
 @voice_bp.route("/transcribe", methods=["POST"])
 @jwt_required()
-async def transcribe_audio():
+def transcribe_audio():
     if "audio" not in request.files:
         return jsonify({"error": "No audio file provided"}), 400
 
@@ -76,7 +77,7 @@ async def transcribe_audio():
     mimetype = audio_file.mimetype or "audio/wav"
 
     try:
-        transcript = await deepgram_service.transcribe_file(audio_bytes, mimetype)
+        transcript = asyncio.run(deepgram_service.transcribe_file(audio_bytes, mimetype))
         return jsonify({"transcript": transcript}), 200
     except Exception as e:
         logger.exception("Transcription failed")
@@ -85,7 +86,7 @@ async def transcribe_audio():
 
 @voice_bp.route("/speak", methods=["POST"])
 @jwt_required()
-async def synthesize_speech():
+def synthesize_speech():
     data = request.get_json(silent=True) or {}
     text = data.get("text", "").strip()
 
@@ -95,7 +96,7 @@ async def synthesize_speech():
         return jsonify({"error": "Text too long (max 1000 chars)"}), 400
 
     try:
-        audio_bytes = await cartesia_service.synthesize(text)
+        audio_bytes = asyncio.run(cartesia_service.synthesize(text))
         return current_app.response_class(
             audio_bytes,
             mimetype="audio/pcm",
@@ -108,7 +109,7 @@ async def synthesize_speech():
 
 @voice_bp.route("/turn", methods=["POST"])
 @jwt_required()
-async def voice_turn():
+def voice_turn():
     user_id = get_jwt_identity()
     data = request.get_json(silent=True) or {}
 
@@ -129,11 +130,11 @@ async def voice_turn():
     )
 
     try:
-        response_text = await agent_orchestrator.process_turn(
+        response_text = asyncio.run(agent_orchestrator.process_turn(
             context=context,
             user_message=user_message,
             store_memory=store_memory,
-        )
+        ))
 
         if conversation_id:
             user_msg = Message(
@@ -151,7 +152,7 @@ async def voice_turn():
             db.session.add_all([user_msg, assistant_msg])
             db.session.commit()
 
-        audio_bytes = await cartesia_service.synthesize(response_text)
+        audio_bytes = asyncio.run(cartesia_service.synthesize(response_text))
 
         return current_app.response_class(
             audio_bytes,

@@ -1,6 +1,7 @@
 # backend/app/blueprints/ai/routes.py
 
 import logging
+import asyncio
 from flask import request, jsonify, Response, stream_with_context
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
@@ -26,7 +27,7 @@ def _get_or_create_conversation(user_id: str, conversation_id: str | None, title
 
 @ai_bp.route("/chat", methods=["POST"])
 @jwt_required()
-async def chat():
+def chat():
     user_id = get_jwt_identity()
     data = request.get_json(silent=True) or {}
 
@@ -54,11 +55,11 @@ async def chat():
         conversation_id = str(conv.id)
         context.conversation_id = conversation_id
 
-        response_text = await agent_orchestrator.process_turn(
+        response_text = asyncio.run(agent_orchestrator.process_turn(
             context=context,
             user_message=user_message,
             store_memory=store_memory,
-        )
+        ))
 
         user_msg = Message(conversation_id=conversation_id, user_id=user_id, role="user", content=user_message)
         assistant_msg = Message(conversation_id=conversation_id, user_id=user_id, role="assistant", content=response_text)
@@ -78,7 +79,7 @@ async def chat():
 
 @ai_bp.route("/chat/stream", methods=["POST"])
 @jwt_required()
-async def chat_stream():
+def chat_stream():
     user_id = get_jwt_identity()
     data = request.get_json(silent=True) or {}
 
@@ -104,11 +105,33 @@ async def chat_stream():
         context.conversation_id = conversation_id
         db.session.commit()
 
-        async def generate():
+        def generate():
             full_response = []
-            async for chunk in agent_orchestrator.stream_response(context, user_message):
-                full_response.append(chunk)
-                yield f"data: {chunk}\n\n"
+            loop = asyncio.new_event_loop()
+            try:
+                async def _stream():
+                    async for chunk in agent_orchestrator.stream_response(context, user_message):
+                        full_response.append(chunk)
+                        yield chunk
+
+                async def _collect():
+                    chunks = []
+                    async for chunk in agent_orchestrator.stream_response(context, user_message):
+                        chunks.append(chunk)
+                        yield chunk
+                    return chunks
+
+                # Use async generator via loop
+                agen = agent_orchestrator.stream_response(context, user_message)
+                while True:
+                    try:
+                        chunk = loop.run_until_complete(agen.__anext__())
+                        full_response.append(chunk)
+                        yield f"data: {chunk}\n\n"
+                    except StopAsyncIteration:
+                        break
+            finally:
+                loop.close()
 
             response_text = "".join(full_response)
             user_msg = Message(conversation_id=conversation_id, user_id=user_id, role="user", content=user_message)

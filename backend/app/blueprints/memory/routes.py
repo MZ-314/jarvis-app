@@ -1,6 +1,7 @@
 # backend/app/blueprints/memory/routes.py
 
 import logging
+import asyncio
 from flask import request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
@@ -36,7 +37,7 @@ def list_memories():
 
 @memory_bp.route("/search", methods=["POST"])
 @jwt_required()
-async def search_memories():
+def search_memories():
     user_id = get_jwt_identity()
     data = request.get_json(silent=True) or {}
     query = data.get("query", "").strip()
@@ -46,11 +47,11 @@ async def search_memories():
         return jsonify({"error": "No query provided"}), 400
 
     try:
-        results = await memory_service.recall(
+        results = asyncio.run(memory_service.recall(
             user_id=str(user_id),
             query=query,
             top_k=top_k,
-        )
+        ))
         return jsonify({"results": results}), 200
     except Exception as e:
         logger.exception("Memory search failed")
@@ -59,7 +60,7 @@ async def search_memories():
 
 @memory_bp.route("/extract", methods=["POST"])
 @jwt_required()
-async def extract_memory():
+def extract_memory():
     user_id = get_jwt_identity()
     data = request.get_json(silent=True) or {}
     text = data.get("text", "").strip()
@@ -71,11 +72,11 @@ async def extract_memory():
         return jsonify({"error": "Text too long (max 4000 chars)"}), 400
 
     try:
-        stored_ids = await memory_service.extract_and_store(
+        stored_ids = asyncio.run(memory_service.extract_and_store(
             user_id=str(user_id),
             text=text,
             conversation_id=conversation_id,
-        )
+        ))
         return jsonify({"stored": len(stored_ids), "ids": stored_ids}), 201
     except Exception as e:
         logger.exception("Memory extraction failed")
@@ -94,14 +95,14 @@ def get_memory(memory_id: str):
 
 @memory_bp.route("/<memory_id>", methods=["DELETE"])
 @jwt_required()
-async def delete_memory(memory_id: str):
+def delete_memory(memory_id: str):
     user_id = get_jwt_identity()
 
     try:
-        deleted = await memory_service.forget(
+        deleted = asyncio.run(memory_service.forget(
             user_id=str(user_id),
             memory_id=memory_id,
-        )
+        ))
         if not deleted:
             return jsonify({"error": "Memory not found"}), 404
         return jsonify({"message": "Memory deleted"}), 200
@@ -112,11 +113,11 @@ async def delete_memory(memory_id: str):
 
 @memory_bp.route("/", methods=["DELETE"])
 @jwt_required()
-async def delete_all_memories():
+def delete_all_memories():
     user_id = get_jwt_identity()
 
     try:
-        await memory_service.forget_all(user_id=str(user_id))
+        asyncio.run(memory_service.forget_all(user_id=str(user_id)))
         return jsonify({"message": "All memories deleted"}), 200
     except Exception as e:
         logger.exception("Failed to delete all memories")
