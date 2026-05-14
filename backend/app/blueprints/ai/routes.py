@@ -109,19 +109,6 @@ def chat_stream():
             full_response = []
             loop = asyncio.new_event_loop()
             try:
-                async def _stream():
-                    async for chunk in agent_orchestrator.stream_response(context, user_message):
-                        full_response.append(chunk)
-                        yield chunk
-
-                async def _collect():
-                    chunks = []
-                    async for chunk in agent_orchestrator.stream_response(context, user_message):
-                        chunks.append(chunk)
-                        yield chunk
-                    return chunks
-
-                # Use async generator via loop
                 agen = agent_orchestrator.stream_response(context, user_message)
                 while True:
                     try:
