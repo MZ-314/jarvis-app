@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+backend/.env
+backend/venv/
+backend/instance/
+
+# Node / Expo
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+
+# General
+.DS_Store
+*.log
+.env
+.env.local
