@@ -29,6 +29,12 @@ class QdrantService:
         )
         self.collection = COLLECTION_NAME
         self.vector_size = VECTOR_SIZE
+        self._collection_ready = False
+
+    async def _ensure_ready(self) -> None:
+        if not self._collection_ready:
+            await self.ensure_collection()
+            self._collection_ready = True
 
     async def ensure_collection(self) -> None:
         existing = await self.client.get_collections()
@@ -49,6 +55,7 @@ class QdrantService:
         payload: dict,
         point_id: Optional[str] = None,
     ) -> str:
+        await self._ensure_ready()
         pid = point_id or str(uuid.uuid4())
         await self.client.upsert(
             collection_name=self.collection,
@@ -63,6 +70,7 @@ class QdrantService:
         top_k: int = 5,
         score_threshold: float = 0.75,
     ) -> list[dict]:
+        await self._ensure_ready()
         results = await self.client.search(
             collection_name=self.collection,
             query_vector=vector,

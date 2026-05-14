@@ -24,6 +24,7 @@ export function useVoice() {
   const recordingRef = useRef<Audio.Recording | null>(null);
   const sessionActive = useRef(false);
   const silenceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const maxDurationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSpeechTime = useRef(0);
   const hasSpeech = useRef(false);
 
@@ -153,7 +154,7 @@ export function useVoice() {
           if (!status.isRecording) return;
           const level = status.metering ?? -160;
           console.log("metering:", level);
-          const isSpeaking = level > -35;
+          const isSpeaking = level > -45;
 
           if (isSpeaking) {
             hasSpeech.current = true;
@@ -177,6 +178,15 @@ export function useVoice() {
       recordingRef.current = recording;
       hasSpeech.current = false;
       lastSpeechTime.current = 0;
+
+      // Auto-submit after 15s as fallback
+      if (maxDurationTimer.current) clearTimeout(maxDurationTimer.current);
+      maxDurationTimer.current = setTimeout(() => {
+        if (recordingRef.current) {
+          hasSpeech.current = true;
+          stopAndProcess();
+        }
+      }, 15000);
     } catch (e) {
       console.log("startRecording error:", e);
       setStatus("error");
@@ -203,6 +213,10 @@ export function useVoice() {
     if (silenceTimer.current) {
       clearTimeout(silenceTimer.current);
       silenceTimer.current = null;
+    }
+    if (maxDurationTimer.current) {
+      clearTimeout(maxDurationTimer.current);
+      maxDurationTimer.current = null;
     }
     if (recordingRef.current) {
       try {
